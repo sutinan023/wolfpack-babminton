@@ -1,0 +1,9 @@
+{
+  "name":"Badminton Club Full Option",
+  "short_name":"Bad Club",
+  "start_url":"./index.html",
+  "display":"standalone",
+  "background_color":"#f5f5f1",
+  "theme_color":"#165c38",
+  "icons":[{"src":"icons/app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}

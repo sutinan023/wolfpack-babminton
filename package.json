@@ -1,0 +1,12 @@
+{
+  "name": "badminton-club-full-option-prototype",
+  "private": true,
+  "scripts": {
+    "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/input.css -o ./dist/app.tailwind.css --minify",
+    "serve": "python -m http.server 8080"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.17"
+  },
+  "type": "module"
+}
