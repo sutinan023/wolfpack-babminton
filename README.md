@@ -1,13 +1,28 @@
-# Badminton Club — Full Option Offline-first Prototype
+# Badminton Club — Full Option Offline-first PWA + Supabase
 
-Prototype รวม **Admin Court Manager + Member ID + Player Profile + Achievement + Offline-first PWA** ไว้ในระบบเดียว
+ระบบ Prototype/Reference implementation สำหรับจัดก๊วนแบดบน iPad โดยรวม **Admin Court Manager + Member ID + Player Profile + Achievement + Offline-first PWA + Supabase Sync** ไว้ในโปรเจกต์เดียว
 
-## เปิดใช้งาน
+## Architecture
 
-### วิธีแนะนำ (PWA / Offline ใช้งานได้)
+```text
+iPad / PWA
+  ↓
+IndexedDB  ← ทำงานหลักตอนอยู่สนาม
+  ↓
+Sync Queue
+  ↓ เมื่อ Online + Login + เปิด Cloud Sync
+Supabase Edge Function: sync-batch
+  ↓
+PostgreSQL transaction + sync_revision
+```
+
+หลักสำคัญ: **Court operation ไม่รอ network** ทุก action บันทึก Local ก่อนเสมอ
+
+## เปิดใช้งาน Local
+
 Windows: ดับเบิลคลิก `start-local.bat`
 
-หรือรัน:
+หรือ:
 
 ```bash
 python -m http.server 8080
@@ -15,94 +30,118 @@ python -m http.server 8080
 
 แล้วเปิด `http://localhost:8080`
 
-> Service Worker และ PWA ทำงานบน `localhost` หรือ HTTPS เท่านั้น หากเปิด `index.html` แบบ `file://` หน้าจอจะเปิดได้ แต่ Offline cache/PWA จะไม่ทำงานเต็มรูปแบบ
+> Service Worker/PWA ต้องใช้ `localhost` หรือ HTTPS
 
-## Demo Player
-Member ID: `BD260012`
+## Admin
 
-## ฟีเจอร์ Admin
 - Member master + Member ID `BD26xxxx`
-- Level: BG / BG+ / N / N+ / S / P / P+
-- Rating auto: 2 / 3 / 4 / 5 / 6 / 7 / 8
-- Multi-session ต่อวัน, เวลา optional
+- Level: `BG / BG+ / N / N+ / S / P / P+`
+- Rating auto: `2 / 3 / 4 / 5 / 6 / 7 / 8`
+- Multi-session ต่อวัน / เวลา optional
 - Check-in / Waiting Queue
-- Court 1–20 และ responsive สำหรับ iPad แนวนอน
+- Court 1–20 / iPad landscape responsive
 - Singles / Doubles
-- Auto Match + alternate pairing + Manual Match
-- 1 Match = 2 เกม; บันทึกเฉพาะ Team A ชนะ / เสมอ / Team B ชนะ
+- Auto Match / alternate pairing / Manual Match
+- Result: Team A / Draw / Team B
 - Next Queue ต่อ Court
-- ยกเลิก Match ที่กำลังเล่นหรือคิวถัดไปโดยไม่เก็บประวัติ
-- แก้ผลย้อนหลังพร้อมย้อน W/D/L เดิม
-- Top 4: ชนะ 3 / เสมอ 1 / แพ้ 0, ขั้นต่ำ 2 Match
-- ปิด/เปิด Session
+- Cancel current/queued match โดยไม่เก็บ history
+- Edit result ย้อนหลัง
+- Top 4 ต่อ Session
 - Primary organizer device
-- IndexedDB local state
-- Pending Sync Queue + Mock Sync
-- Export / Import Backup JSON
+- IndexedDB + Backup JSON
 
-## Player
-- เข้า Profile ด้วย Member ID
+## Cloud Sync
+
+Sync Queue ใช้งานจริงแล้ว ไม่ใช่ Mock Sync
+
+Queue state:
+
+```text
+pending → syncing → synced
+                  ↘ failed
+                  ↘ conflict
+```
+
+คุณสมบัติ:
+
+- UUID operation ID สำหรับ idempotency
+- legacy queue ID รุ่นเก่าถูก migrate เป็น UUID ก่อนส่ง
+- ส่งเป็น authenticated batch ผ่าน `sync-batch`
+- snapshot ถูก apply ใน PostgreSQL transaction เดียว
+- Club-level optimistic concurrency ด้วย `sync_revision`
+- ถ้า revision ไม่ตรง ระบบหยุดและ mark `conflict`
+- Conflict ไม่ overwrite Cloud อัตโนมัติ
+- มี explicit action **ใช้ข้อมูลใน iPad นี้แทน Cloud** พร้อม confirmation
+- Match sync เรียง `finished → playing → queued` เพื่อไม่ชน unique court-state constraints
+
+### Safety gate
+
+หลัง Login/สร้าง Club แล้ว Cloud Sync **ยังไม่เปิดทันที**
+
+Admin ต้องไป `ตั้งค่า / Offline & Data` แล้วกด **เปิด Cloud Sync** ก่อน เพราะ snapshot Local ทั้งชุดจะถูกถือเป็น authoritative state ตอน Sync ครั้งแรก วิธีนี้ช่วยป้องกัน Demo/ข้อมูลทดลองถูกส่งขึ้น Cloud โดยไม่ตั้งใจ
+
+## Organizer Auth
+
+Admin ใช้ Email OTP:
+
+```text
+Email → OTP → Supabase Auth → Club membership
+```
+
+ครั้งแรกสามารถสร้าง Club ผ่าน JWT-protected `bootstrap-club` และกลายเป็น `owner`
+
+Browser ใช้เฉพาะ **publishable key** ไม่มี secret/service-role key ใน frontend
+
+## Player Profile
+
+- เปิดด้วย Member ID
 - Read-only
-- Career summary + W/D/L
-- Match history
-- Achievement 8 แบบ
-- Top 4 history จาก Session ที่มีข้อมูล
+- Online: `player-profile` Edge Function
+- Offline: ใช้ profile ล่าสุดจาก IndexedDB cache
 
-## Offline-first
-ทุก action ฝั่ง Admin จะบันทึก **IndexedDB ก่อน** แล้วเพิ่ม event เข้า Sync Queue ภายหลัง จึงไม่ต้องรอ network ตอนจัดก๊วน
+## Supabase
 
-Sync ใน Prototype เป็น **Mock Sync**: เมื่อ Online จะเปลี่ยน event จาก pending → synced เพื่อสาธิต UX เท่านั้น ยังไม่ได้ส่ง API จริง
+Project ref ปัจจุบัน: `puwkuhqmdzdhxbafttxq`
+
+Edge Functions ใน repo:
+
+```text
+supabase/functions/player-profile/
+supabase/functions/bootstrap-club/
+supabase/functions/sync-batch/
+```
+
+Migration ของ Sync รอบนี้:
+
+```text
+supabase/migrations/20260820_cloud_snapshot_sync.sql
+```
+
+## Tests
+
+```bash
+npm test
+npm run check:js
+```
 
 ## Tailwind
-Markup ใช้แนวทาง utility-first และชื่อ class แบบ Tailwind โดยมีไฟล์ offline fallback `dist/tailwind.offline.css` แพ็กมาให้เพื่อไม่พึ่ง CDN ในสนาม
 
-ไฟล์ Tailwind source/build config พร้อมอยู่แล้ว:
-- `src/input.css`
-- `tailwind.config.cjs`
-- `package.json`
+UI เป็น utility-first/Tailwind-ready และมี offline stylesheet อยู่ที่:
 
-ถ้าต้องการ build ด้วย Tailwind official CLI:
+```text
+dist/tailwind.offline.css
+```
+
+ถ้าต้องการ rebuild Tailwind:
 
 ```bash
 npm install
 npm run build:css
 ```
 
-จากนั้นเปลี่ยน `<link>` ใน `index.html` จาก `dist/tailwind.offline.css` เป็น `dist/app.tailwind.css`
+## หมายเหตุ Production
 
-## โครงสร้าง
-
-```text
-assets/js/core/      pure business logic
-assets/js/storage/   IndexedDB / memory adapters
-assets/js/sync/      sync queue
-assets/js/ui/        Admin / Player / Modal / Network UI
-assets/js/state.js   local-first application state
-dist/                offline CSS
-sw.js                service worker
-manifest.webmanifest PWA manifest
-tests/               logic / sync / structure tests
-```
-
-
-## Supabase integration (live project)
-
-- Project: `wolfpack-babminton`
-- Project ref: `puwkuhqmdzdhxbafttxq`
-- Player profile endpoint: `POST /functions/v1/player-profile`
-- Player profile lookup is public read-only by Member ID through the Edge Function. Direct database RPC access is restricted to backend/service role.
-- Player profiles loaded online are cached in IndexedDB and can be reopened offline.
-- Admin sync remains local-first; the next integration step is Supabase Auth + club bootstrap + real sync batch processing.
-
-Security: never put Supabase secret/service-role keys in browser code.
-
-
-### Organizer cloud onboarding
-
-The Admin header now has a **Cloud** button:
-1. Enter organizer email.
-2. Verify email OTP.
-3. First organizer creates a Club and becomes `owner` through the JWT-protected `bootstrap-club` Edge Function.
-4. Local court operation remains usable while signed out/offline; cloud synchronization can resume later.
-
-Only the Supabase **publishable key** is shipped to browser code. No secret/service-role key is included.
+- ระบบยังใช้ Primary Organizer Device เป็น conflict-avoidance หลัก
+- ยังไม่มี automatic merge ระหว่าง 2 เครื่องที่แก้ข้อมูล Offline พร้อมกัน
+- Remote Achievement awarding ยังควรทำเป็น phase แยก (ปัจจุบันฐาน achievement definitions พร้อมแล้ว)
+- ก่อนใช้งานจริงควรตั้ง Custom SMTP สำหรับ Auth และทดสอบสนามจริงด้วย iPad หลายรอบ

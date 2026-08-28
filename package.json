@@ -3,7 +3,9 @@
   "private": true,
   "scripts": {
     "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/input.css -o ./dist/app.tailwind.css --minify",
-    "serve": "python -m http.server 8080"
+    "serve": "python -m http.server 8080",
+    "test": "node tests/admin_pin.test.mjs && node tests/core.test.mjs && node tests/sync.test.mjs && node tests/cloud_sync_snapshot.test.mjs && node tests/cloud_sync_transport.test.mjs && node tests/state_cloud_sync.test.mjs && node tests/cloud_integration.test.mjs && node tests/cloud_auth_magic_link.test.mjs && node tests/cloud_backup.test.mjs && node tests/ui_contract.test.mjs && node tests/session_delete_sync.test.mjs && node tests/cloud_data_entry.test.mjs && node tests/v31_lifecycle.test.mjs && node tests/vercel_deployment.test.mjs && node tests/structure.test.mjs",
+    "check:js": "find assets/js -name '*.js' -print0 | xargs -0 -n1 node --check"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17"

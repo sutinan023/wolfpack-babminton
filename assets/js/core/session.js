@@ -21,6 +21,24 @@ export function closeSession(session,at=new Date().toISOString()){
   session.status='closed'; session.closedAt=at; return session;
 }
 export function reopenSession(session){session.status='open';session.closedAt=null;return session;}
+export function sessionDeleteBlockReason(state,sessionId){
+  const session=state.sessions.find(s=>s.id===sessionId);
+  if(!session)return 'not_found';
+  if(state.sessions.length<=1)return 'last_session';
+  if((session.matches||[]).length)return 'has_matches';
+  if((session.attendance||[]).some(a=>(a.status||'absent')!=='absent'))return 'has_checkin';
+  return null;
+}
+export function deleteSession(state,sessionId){
+  const reason=sessionDeleteBlockReason(state,sessionId);
+  if(reason==='not_found')throw new Error('Session not found');
+  if(reason==='last_session')throw new Error('Cannot delete last session');
+  if(reason==='has_matches')throw new Error('Session has match history');
+  if(reason==='has_checkin')throw new Error('Session has check-in');
+  state.sessions=state.sessions.filter(s=>s.id!==sessionId);
+  if(state.activeSessionId===sessionId)state.activeSessionId=state.sessions[state.sessions.length-1].id;
+  return state;
+}
 export function ensureAttendance(session,memberId){if(!session.attendance.some(a=>a.memberId===memberId))session.attendance.push(attendanceFor(memberId));}
 export function checkIn(session,memberId){const a=session.attendance.find(a=>a.memberId===memberId);if(!a)throw new Error('Attendance missing');a.status='waiting';a.waitMinutes=0;return a;}
 export function markLeft(session,memberId){const a=session.attendance.find(a=>a.memberId===memberId);if(!a)throw new Error('Attendance missing');if(['playing','queued'].includes(a.status))throw new Error('Member has active match');a.status='left';a.waitMinutes=0;return a;}
