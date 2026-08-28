@@ -1,12 +1,25 @@
 import fs from 'node:fs';
 const app=fs.readFileSync(new URL('../assets/js/app.js',import.meta.url),'utf8');
 const auth=fs.readFileSync(new URL('../assets/js/cloud/auth.js',import.meta.url),'utf8');
-const player=fs.readFileSync(new URL('../assets/js/ui/player.js',import.meta.url),'utf8');
+const sync=fs.readFileSync(new URL('../assets/js/cloud/sync.js',import.meta.url),'utf8');
+const state=fs.readFileSync(new URL('../assets/js/state.js',import.meta.url),'utf8');
+const admin=fs.readFileSync(new URL('../assets/js/ui/admin.js',import.meta.url),'utf8');
 const sw=fs.readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 function ok(v,msg){if(!v)throw new Error(msg);console.log('PASS',msg)}
 ok(app.includes('player-profile'),'player profile endpoint wired');
 ok(auth.includes('/auth/v1/otp')&&auth.includes('/auth/v1/verify'),'email OTP auth wired');
+ok(auth.includes('restoreSessionFromAuthUrl'),'magic link callback session restore wired');
+ok(auth.includes('magic_link')&&auth.includes('email_otp'),'auth mode switch supported');
+ok(auth.includes('sendEmailMagicLink'),'magic link sender exposed');
 ok(auth.includes('bootstrap-club'),'club bootstrap wired');
-ok(player.includes('renderRemotePlayer'),'remote player renderer exists');
-ok(sw.includes('./assets/js/cloud/auth.js'),'cloud auth module cached by service worker');
+ok(sync.includes('/functions/v1/sync-batch'),'real cloud sync endpoint wired');
+ok(state.includes('toCloudSnapshot')&&state.includes('cloudSync'),'AppState tracks cloud snapshot revision');
+ok(admin.includes('Conflict')&&admin.includes('Failed'),'offline settings expose sync failure states');
+ok(!app.includes('Mock Sync')&&!app.includes('Mock sync'),'UI no longer claims admin sync is mock');
+ok(sw.includes('./assets/js/cloud/auth.js')&&sw.includes('./assets/js/cloud/sync.js')&&sw.includes('./assets/js/cloud/snapshot.js'),'cloud sync modules cached by service worker');
 ok(!auth.includes('sb_secret_')&&!auth.includes('SUPABASE_SERVICE_ROLE_KEY'),'browser auth has no secret key');
+ok(!sync.includes('sb_secret_')&&!sync.includes('SUPABASE_SERVICE_ROLE_KEY'),'browser sync has no secret key');
+ok(app.includes('confirm-enable-cloud-sync')&&app.includes('enableCloudSync'),'Admin requires explicit Cloud Sync enablement');
+ok(admin.includes('เปิด Cloud Sync')&&admin.includes('ยังไม่เปิด'),'settings show Cloud Sync safety gate');
+ok(app.includes('confirm-force-local-sync')&&app.includes('forceLocalAfterConflict'),'conflict resolution requires explicit force-local confirmation');
+ok(admin.includes('ใช้ข้อมูลใน iPad นี้แทน Cloud'),'settings expose explicit conflict resolution action');

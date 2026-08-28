@@ -1,0 +1,11 @@
+.git
+.vercel
+node_modules
+tests
+supabase
+src
+README.md
+tailwind.config.cjs
+package-lock.json
+package.json
+.env*

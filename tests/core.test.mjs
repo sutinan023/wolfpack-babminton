@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { LEVEL_RATING, levelToRating } from '../assets/js/core/constants.js';
 import { createMember, nextMemberCode } from '../assets/js/core/member.js';
-import { createSession, setCourtCount, closeSession, reopenSession } from '../assets/js/core/session.js';
+import { createSession, setCourtCount, closeSession, reopenSession, deleteSession } from '../assets/js/core/session.js';
 import { createMatch, cancelCurrentMatch, cancelQueuedMatch, applyResult, editFinishedResult, autoMatchCandidates } from '../assets/js/core/match.js';
 import { topFour } from '../assets/js/core/ranking.js';
 import { achievementProgress } from '../assets/js/core/achievement.js';
@@ -34,6 +34,39 @@ test('session supports optional time and resizing courts', () => {
   assert.equal(s.status, 'closed');
   reopenSession(s);
   assert.equal(s.status, 'open');
+});
+
+test('deleting an empty session switches active session to latest remaining', () => {
+  const state={
+    sessions:[
+      createSession({id:'s1',name:'รอบเช้า',date:'2026-08-20',courtCount:1,memberIds:[]}),
+      createSession({id:'s2',name:'รอบเย็น',date:'2026-08-20',courtCount:1,memberIds:[]}),
+      createSession({id:'s3',name:'รอบดึก',date:'2026-08-20',courtCount:1,memberIds:[]})
+    ],
+    activeSessionId:'s2'
+  };
+  deleteSession(state,'s2');
+  assert.deepEqual(state.sessions.map(s=>s.id),['s1','s3']);
+  assert.equal(state.activeSessionId,'s3');
+});
+
+test('deleting the last session is blocked', () => {
+  const state={sessions:[createSession({id:'s1',name:'รอบเดียว',date:'2026-08-20',courtCount:1,memberIds:[]})],activeSessionId:'s1'};
+  assert.throws(()=>deleteSession(state,'s1'),/last session/i);
+});
+
+test('deleting a session with check-in is blocked', () => {
+  const s1=createSession({id:'s1',name:'รอบเช้า',date:'2026-08-20',courtCount:1,memberIds:['m1']});
+  s1.attendance[0].status='waiting';
+  const state={sessions:[s1,createSession({id:'s2',name:'รอบเย็น',date:'2026-08-20',courtCount:1,memberIds:[]})],activeSessionId:'s1'};
+  assert.throws(()=>deleteSession(state,'s1'),/check-in/i);
+});
+
+test('deleting a session with match history is blocked', () => {
+  const s1=createSession({id:'s1',name:'รอบเช้า',date:'2026-08-20',courtCount:1,memberIds:[]});
+  s1.matches.push({id:'match_1'});
+  const state={sessions:[s1,createSession({id:'s2',name:'รอบเย็น',date:'2026-08-20',courtCount:1,memberIds:[]})],activeSessionId:'s1'};
+  assert.throws(()=>deleteSession(state,'s1'),/match/i);
 });
 
 test('cancel current match deletes it and promotes queued match', () => {

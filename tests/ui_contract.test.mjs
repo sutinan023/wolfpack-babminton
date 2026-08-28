@@ -6,4 +6,5 @@ const player=fs.readFileSync(new URL('../assets/js/ui/player.js',import.meta.url
 for(const s of ['Check-in','สมาชิก','Top 4','ยกเลิก Match','Waiting Queue'])assert.ok(admin.includes(s),s);
 for(const s of ['CREATE_MATCH','CANCEL_MATCH','EDIT_RESULT','CHECK_IN','CREATE_MEMBER'])assert.ok(app.includes(s),s);
 for(const s of ['PLAYER PROFILE','Achievement','Match History'])assert.ok(player.includes(s),s);
+for(const s of ['ส่ง Sign-in Link','cloud-toggle-mode','cloud-email-form','cloud-otp-form'])assert.ok(app.includes(s),s);
 console.log('PASS ui contract');
